@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: crawler-worker-job
+  labels:
+    kueue.x-k8s.io/queue-name: crawler-queue
+spec:
+  parallelism: 3
+  completions: 3
+  suspend: true # Required for Kueue to manage the admission
+  template:
+    spec:
+      containers:
+      - name: worker
+        image: gcr.io/my-project/crawler-worker:latest
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        env:
+        - name: PROJECT_ID
+          value: "my-project"
+        - name: SUBSCRIPTION_ID
+          value: "crawler-sub"
+        - name: TOPIC_ID
+          value: "crawler-topic"
+      restartPolicy: OnFailure
