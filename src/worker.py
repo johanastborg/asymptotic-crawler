@@ -18,16 +18,26 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 async def fetch_and_parse(session, url):
     """
     Fetches the URL and extracts all valid links.
+    Returns: (links, has_webmcp)
     """
     try:
         logging.info(f"Fetching {url}")
         async with session.get(url, timeout=10) as response:
             if response.status != 200:
                 logging.warning(f"Failed to fetch {url}: Status {response.status}")
-                return []
+                return [], False
 
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
+
+            # Detect WebMCP
+            has_webmcp = False
+            for script in soup.find_all('script', src=True):
+                if 'webmcp.js' in script['src']:
+                    has_webmcp = True
+                    logging.info(f"WebMCP detected on {url}")
+                    break
+
             links = []
             for a_tag in soup.find_all('a', href=True):
                 href = a_tag['href']
@@ -36,10 +46,10 @@ async def fetch_and_parse(session, url):
                 parsed = urlparse(full_url)
                 if parsed.scheme in ('http', 'https'):
                     links.append(full_url)
-            return links
+            return links, has_webmcp
     except Exception as e:
         logging.error(f"Error processing {url}: {e}")
-        return []
+        return [], False
 
 async def process_messages(messages, publisher, topic_path):
     """
@@ -56,7 +66,7 @@ async def process_messages(messages, publisher, topic_path):
 
         # Publish new links
         # Note: In a production system, we should deduplicate links before publishing.
-        for links in results:
+        for links, _ in results:
             for link in links:
                 try:
                     publisher.publish(topic_path, link.encode('utf-8'))
